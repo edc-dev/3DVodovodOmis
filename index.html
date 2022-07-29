@@ -1,0 +1,1944 @@
+<!DOCTYPE html>
+<html lang="hr-hr">
+  <head>
+    <meta charset="utf-8" />
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.95/Build/Cesium/Cesium.js"></script>
+    <script src="config.js"></script>
+    <link
+      href="https://cesium.com/downloads/cesiumjs/releases/1.93/Build/Cesium/Widgets/widgets.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://sandcastle.cesium.com/templates/bucket.css"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" type="text/css" href="style.css" />
+    <style>
+      #cesiumContainer {
+        display: flex;
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+      }
+
+      .toolbar-left {
+        display: block;
+        position: absolute;
+        top: 5px;
+        left: 5px;
+      }
+      .toolbar-right {
+        display: block;
+        position: absolute;
+        top: 5px;
+        left: 50%;
+      }
+
+      #viewLeft {
+        display: inline-block;
+        width: 100%;
+      }
+      #viewRight {
+        display: inline-block;
+        width: 100%;
+      }
+      #viewStyle {
+        display:none;
+        width:100%;
+        background-color: white
+      }
+    </style>
+  </head>
+  <body>
+    <div id="cesiumContainer" class="fullSize">
+      <div id="viewLeft"></div>
+      <div class="toolbar-left" id="toolbar-left">
+        <input
+          id="btnPogledL"
+          type="button"
+          onclick="buttonChange()"
+          value="2D/3D"
+        />
+      </div>
+
+      <div id="viewRight"></div>
+      <div id="loadingOverlay"><h1>Loading...</h1></div>
+
+      <div class="toolbar-right" id="toolbar-right"></div>   
+      <div class="viewStyle" id="viewStyle">
+      <select id = "drpLayers" style="height: 50px;" onchange="drpLayersChange()">
+             </select>
+           <select id = "drpProperties" style="height: 50px;" onchange="drpPropertiesChange()">
+             </select>
+      </div>
+    </div>
+    <script>
+      const mapMaterijali = new Map();
+
+      mapMaterijali.set("AC", Cesium.Color.DARKORANGE);
+      mapMaterijali.set("AC-C", Cesium.Color.DARKORANGE);
+      mapMaterijali.set("AC-D", Cesium.Color.DARKORANGE);
+      mapMaterijali.set("PEHD", Cesium.Color.YELLOW);
+      mapMaterijali.set("PVC", Cesium.Color.YELLOWGREEN);
+      mapMaterijali.set("POC", Cesium.Color.LIGHTGRAY);
+      mapMaterijali.set("NL", Cesium.Color.DARKGRAY);
+      mapMaterijali.set("SL", Cesium.Color.DARKGRAY);
+      mapMaterijali.set("ČE", Cesium.Color.STEELBLUE);
+      mapMaterijali.set("CE", Cesium.Color.STEELBLUE);
+      mapMaterijali.set("Nepoznato", Cesium.Color.DARKMAGENTA);
+
+      Cesium.Ion.defaultAccessToken =
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJjZDIxNzFlNS0wYWQ2LTQ5NTYtYTBmNy1iMWRkNGQ2MWRlYWEiLCJpZCI6OTUxNjcsImlhdCI6MTY1MzQ4MTEwNH0.oLUjSWc9t2PWYdfrKrg67-HMgXa3RtiUDcBtpWXFB7w";
+
+      Cesium.Camera.DEFAULT_VIEW_FACTOR = 0;
+
+      var extent = Cesium.Rectangle.fromDegrees(
+        16.6796,
+        43.436044,
+        16.694768,
+        43.453013
+      );
+
+      Cesium.Camera.DEFAULT_VIEW_RECTANGLE = extent;
+
+      // We want our two views to be synced across time, so we create
+      // a shared clock object that both views share
+      const clockViewModel = new Cesium.ClockViewModel();
+      const options3D = {
+        fullscreenButton: false,
+        sceneModePicker: false,
+        clockViewModel: clockViewModel,
+        geocoder: new PrikljucakGeocoder(),
+        // targetFrameRate: 12,
+        scene3DOnly: true,
+        requestRenderMode: true,
+        timeline: false,
+        terrainProvider: new Cesium.CesiumTerrainProvider({
+          url: Cesium.IonResource.fromAssetId(1103401), //(1), raster terrain, Cesium World, meter, ellipsoid    1103401
+        }), //postoji metoda kad je promise gotov
+        animation: false,
+        sceneMode: Cesium.SceneMode.SCENE3D,
+      };
+      const options2D = {
+        homeButton: true,
+        fullscreenButton: false,
+        sceneModePicker: false,
+        clockViewModel: clockViewModel,
+        requestRenderMode: true,
+        timeline: false,
+        infoBox: true,
+        geocoder: new PrikljucakGeocoder2D(),
+        sceneMode: Cesium.SceneMode.SCENE2D,
+        navigationHelpButton: false,
+        animation: false,
+      };
+      // We create two viewers, a 2D and a 3D one
+      // The CSS is set up to place them side by side
+
+      let view3D = new Cesium.Viewer("viewLeft", options3D);
+      let view2D = new Cesium.Viewer("viewRight", options2D);
+      
+      
+      
+const tileset = view3D.scene.primitives.add(
+  new Cesium.Cesium3DTileset({
+    url: Cesium.IonResource.fromAssetId(1234331),
+  })
+);
+
+/* const layer = view3D.imageryLayers.addImageryProvider(
+  new Cesium.IonImageryProvider({ assetId: 1232283,
+                                 heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                                })
+);     */
+      
+      
+      // Since the 2D view follows the 3D view, we disable any
+      // camera movement on the 2D view
+
+      view2D.scene.screenSpaceCameraController.enableRotate = false;
+      view2D.scene.screenSpaceCameraController.enableTranslate = false;
+      view2D.scene.screenSpaceCameraController.enableZoom = false;
+      view2D.scene.screenSpaceCameraController.enableTilt = false;
+      view2D.scene.screenSpaceCameraController.enableLook = false;
+
+      var btnCounter = 0;
+  
+      
+      function buttonChange() {
+        let btnPogledL = document.getElementById("btnPogledL");
+        let viewLeft = document.getElementById("viewLeft");
+        let toolbarRight = document.getElementById("toolbar-right");
+        let viewRight = document.getElementById("viewRight");
+        let viewStyle = document.getElementById("viewStyle")
+        let homewidgetR = document.getElementsByClassName(
+          "cesium-button cesium-toolbar-button cesium-home-button"
+        )[1];
+
+        if (btnCounter === 3) {
+          btnCounter = 0;
+        } else {
+          btnCounter = btnCounter + 1;
+        }
+        console.log(btnCounter);
+        
+    
+        
+        switch (btnCounter) {
+          case 0:
+            btnPogledL.value = "2D/3D";
+            viewLeft.style.display = "inline-flex";
+
+            viewRight.style.display = "inline-flex";
+            viewStyle.style.display = "none";
+   view3D.homeButton.viewModel.command();
+
+            break;
+          case 1:
+            btnPogledL.value = "2D";
+            viewLeft.style.display = "none";
+            viewRight.style.display = "inline-flex";
+
+            toolbarRight.className = "toolbar-left";
+
+
+            let btnPogledR = document.createElement("input");
+            btnPogledR.type = "button";
+            btnPogledR.id = "btnPogledR";
+            btnPogledR.value = "2D";
+            btnPogledR.onclick = function () {
+              buttonChange();
+            };
+            toolbarRight.append(btnPogledR);
+
+            //todo: dodati pretragu, picking, pan, zoom --- možda ih treba napraviti u trenutku nastajanja view i sakriti ih i prikazati po potrebi
+
+            view2D.scene.screenSpaceCameraController.enableTranslate = true;
+            view2D.scene.screenSpaceCameraController.enableZoom = true;
+
+            //ovo treba enablat kada je solo 2d view
+            view3D.camera.changed.removeEventListener(sync2DView);
+            view2D.camera.changed.addEventListener(sync3DView); //ovo ne bu sam tak išlo, visine, projekcije, referentni sustavi
+            view2D.camera.percentageChanged = 0.01;
+            var searchwidget = document.getElementsByClassName(
+              "cesium-viewer-geocoderContainer"
+            )[1];
+            searchwidget.style.display = "inline-flex";
+
+            var handler = new Cesium.ScreenSpaceEventHandler(
+              view2D.scene.canvas
+            );
+            handler.setInputAction(function (click) {
+              var pickedObject = view2D.scene.pick(click.position);
+              if (
+                Cesium.defined(pickedObject) &&
+                pickedObject.collection === prikljCollection2D
+              ) {
+                //  pickedObject.primitive.color = Cesium.Color.YELLOW;
+                alert(pickedObject.id); //može ovo i pametnije ali eto...
+              }
+            }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+            var homewidget = document.getElementsByClassName(
+              "cesium-button cesium-toolbar-button cesium-home-button"
+            )[1];
+            homewidget.style.display = "inline-flex";
+            view2D.homeButton.viewModel.command();
+            break;
+          case 2:
+            btnPogledL.value = "3D";
+
+
+            viewLeft.style.display = "inline-flex";
+
+            viewRight.style.display = "none";
+
+
+            toolbarRight.className = "toolbar-right";
+
+            document.getElementById("btnPogledR").remove();
+
+            //todo: dodati pretragu, picking, pan, zoom --- možda ih treba napraviti u trenutku nastajanja view i sakriti ih i prikazati po potrebi
+
+            view2D.scene.screenSpaceCameraController.enableTranslate = false;
+            view2D.scene.screenSpaceCameraController.enableZoom = false;
+
+            //ovo treba enablat kada je solo 2d view
+            view3D.camera.changed.addEventListener(sync2DView);
+            view2D.camera.changed.removeEventListener(sync3DView);
+            view3D.camera.percentageChanged = 0.01;
+            var searchwidget = document.getElementsByClassName(
+              "cesium-viewer-geocoderContainer"
+            )[1];
+            searchwidget.style.display = "none";
+
+            homewidgetR.style.display = "none";
+            view3D.homeButton.viewModel.command();
+            break;
+          case 3:
+            btnPogledL.value = "3D/Style";
+            
+
+          viewLeft.style.display = "inline-flex";
+
+            viewRight.style.display = "none";
+            viewStyle.style.display = "inline-flex";
+            
+          view3D.homeButton.viewModel.command(); 
+        
+            
+    
+            
+                    
+            
+     ///////////////////////////////////////////////////////////////////     
+        
+        
+
+            
+           
+            
+  
+
+    if(view3D.dataSourceDisplay.ready === true){
+  
+                 console.log("SL:",view3D.dataSources._dataSources.length); 
+
+               
+          let drpLayers=document.getElementById("drpLayers");
+                
+  let drpProperties=document.getElementById("drpProperties");
+   
+ const loadedLayers=[];
+ 
+
+//      console.log(view3D.dataSources._dataSources.length)   
+      
+      
+                  for (let i=0; i<view3D.dataSources._dataSources.length; ++i){
+        //  console.log(view3D.dataSources._dataSources[i]._name.split(".")[0]);   
+ 
+              loadedLayers.push(view3D.dataSources._dataSources[i]._name.split(".")[0]);
+               var option = document.createElement("option");
+    option.value = view3D.dataSources._dataSources[i]._name.split(".")[0];
+    option.text = view3D.dataSources._dataSources[i]._name.split(".")[0];
+    drpLayers.remove(option);
+      
+                  }
+  
+            for (let i=0; i<view3D.dataSources._dataSources.length; ++i){
+      //    console.log(view3D.dataSources._dataSources[i]._name.split(".")[0]);   
+ 
+              loadedLayers.push(view3D.dataSources._dataSources[i]._name.split(".")[0]);
+               var option = document.createElement("option");
+    option.value = view3D.dataSources._dataSources[i]._name.split(".")[0];
+    option.text = view3D.dataSources._dataSources[i]._name.split(".")[0];
+    drpLayers.add(option);
+                }      
+        
+        
+           let selLayer=drpLayers.value+".geojson"
+   let selLayerIdx=drpLayers.selectedIndex;
+
+let selProperties=view3D.dataSources._dataSources[selLayerIdx]._entityCollection._entities._array[selLayerIdx]._properties._propertyNames
+ 
+
+            var child = drpProperties.lastElementChild; 
+        while (child) {
+            drpProperties.removeChild(child);
+            child = drpProperties.lastElementChild;
+
+    }
+
+      for (let i=0; i<selProperties.length; ++i){
+    
+               var option = document.createElement("option");
+    option.value = selProperties[i];
+    option.text = selProperties[i];
+    drpProperties.add(option);
+                }
+                    
+      
+          }
+   
+            // e. sad: izvuć tablicu sa zadanim brojem klasa ili prema zadanom filteru stil za fill, outline width, width, size, colour,symbol i vidljivost od do - ak može, ovisno o vrsti entiteta
+   
+                 
+
+       
+
+
+
+        
+        
+              
+    
+
+    ///////////////////////////////////////////////                
+            
+           
+
+           
+           break;
+        }
+      }
+      
+      
+      
+          function drpLayersChange(){
+selLayer=drpLayers.value+".geojson"
+      selLayerIdx=drpLayers.selectedIndex;
+selProperties=view3D.dataSources._dataSources[selLayerIdx]._entityCollection._entities._array[selLayerIdx]._properties._propertyNames
+            
+       
+  
+           
+            var child = drpProperties.lastElementChild; 
+        while (child) {
+            drpProperties.removeChild(child);
+            child = drpProperties.lastElementChild;
+
+    }
+            
+            
+          selProperties=view3D.dataSources._dataSources[selLayerIdx]._entityCollection._entities._array[selLayerIdx]._properties._propertyNames
+ 
+
+      for (let i=0; i<selProperties.length; ++i){
+    
+               var option = document.createElement("option");
+    option.value = selProperties[i];
+    option.text = selProperties[i];
+    drpProperties.add(option);
+                }  
+
+       }
+
+  
+    
+   
+            
+          
+                 
+
+
+
+
+    function drpPropertiesChange(){
+
+                }
+      
+              
+            
+            
+
+      let worldPosition;
+      let distance;
+
+      function sync2DView() {
+        // The center of the view is the point that the 3D camera is focusing on
+        const viewCenter = new Cesium.Cartesian2(
+          Math.floor(view3D.canvas.clientWidth / 2),
+          Math.floor(view3D.canvas.clientHeight / 2)
+        );
+        // Given the pixel in the center, get the world position
+        const newWorldPosition = view3D.scene.camera.pickEllipsoid(viewCenter);
+        if (Cesium.defined(newWorldPosition)) {
+          // Guard against the case where the center of the screen
+          // does not fall on a position on the globe
+          worldPosition = newWorldPosition;
+        }
+        // Get the distance between the world position of the point the camera is focusing on, and the camera's world position
+        distance = Cesium.Cartesian3.distance(
+          worldPosition,
+          view3D.scene.camera.positionWC
+        );
+        // Tell the 2D camera to look at the point of focus. The distance controls how zoomed in the 2D view is
+        // (try replacing `distance` in the line below with `1e7`. The view will still sync, but will have a constant zoom)
+        view2D.scene.camera.lookAt(
+          worldPosition,
+          new Cesium.Cartesian3(0.0, 0.0, distance)
+        );
+      }
+
+      function sync3DView() {
+        // The center of the view is the point that the 3D camera is focusing on
+        const viewCenter = new Cesium.Cartesian2(
+          Math.floor(view2D.canvas.clientWidth / 2),
+          Math.floor(view2D.canvas.clientHeight / 2)
+        );
+        // Given the pixel in the center, get the world position
+        const newWorldPosition = view3D.scene.camera.pickEllipsoid(viewCenter);
+        if (Cesium.defined(newWorldPosition)) {
+          // Guard against the case where the center of the screen
+          // does not fall on a position on the globe
+          worldPosition = newWorldPosition;
+        }
+        // Get the distance between the world position of the point the camera is focusing on, and the camera's world position
+        distance = Cesium.Cartesian3.distance(
+          worldPosition,
+          view2D.scene.camera.positionWC
+        );
+        // Tell the 2D camera to look at the point of focus. The distance controls how zoomed in the 2D view is
+        // (try replacing `distance` in the line below with `1e7`. The view will still sync, but will have a constant zoom)
+        view3D.scene.camera.lookAt(
+          worldPosition,
+          new Cesium.Cartesian3(0.0, 0.0, distance)
+        );
+      }
+
+      // Apply our sync function every time the 3D camera view changes
+      view3D.camera.changed.addEventListener(sync2DView);
+      // By default, the `camera.changed` event will trigger when the camera has changed by 50%
+      // To make it more sensitive, we can bring down this sensitivity
+      view3D.camera.percentageChanged = 0.01;
+
+      view3D.camera.flyTo({
+        destination: Cesium.Cartesian3.fromDegrees(16.6821, 43.4303, 800),
+        orientation: {
+          heading: Cesium.Math.toRadians(0.0),
+          pitch: Cesium.Math.toRadians(-15.0),
+        },
+      });
+
+      view3D.scene.globe.depthTestAgainstTerrain = true; //TŠ čemu ovo služi a i ne radi - za gledanje ispod zemlje
+
+      function toDegrees(cartesian3Pos) {
+        let pos = Cesium.Cartographic.fromCartesian(cartesian3Pos);
+        let lng = (pos.longitude / Math.PI) * 180;
+        let ltt = (pos.latitude / Math.PI) * 180;
+        let height = pos.height;
+        let lon = lng.toFixed(6);
+        let lat = ltt.toFixed(6);
+        let elev = height.toFixed(6);
+        alert(lat + "\n" + lon + "\n" + elev);
+      }
+
+      view3D.scene.canvas.addEventListener("contextmenu", (event) => {
+        event.preventDefault();
+
+        const mousePosition = new Cesium.Cartesian2(
+          event.clientX,
+          event.clientY
+        );
+        const selectedLocation = view3D.scene.pickPosition(mousePosition);
+        toDegrees(selectedLocation);
+        view3D.scene.requestRender();
+        view2D.scene.requestRender();
+      });
+
+      var handler = new Cesium.ScreenSpaceEventHandler(view3D.scene.canvas);
+      handler.setInputAction(function (click) {
+        var pickedObject = view3D.scene.pick(click.position);
+        if (
+          Cesium.defined(pickedObject) &&
+          pickedObject.collection === prikljCollection3D
+        ) {
+          //  pickedObject.primitive.color = Cesium.Color.YELLOW;
+          alert(pickedObject.id); //može ovo i pametnije ali eto...
+        }
+      }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+      /*      var handler = new Cesium.ScreenSpaceEventHandler(view3D.scene.canvas);
+            handler.setInputAction(function (movement) {
+              var pickedObject = view3D.scene.pick(movement.endPosition);
+              if (
+                Cesium.defined(pickedObject) &&
+                pickedObject.collection === prikljCollection3D
+              ) {
+                pickedObject.primitive.color = Cesium.Color.YELLOW;
+              }
+            }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);*/
+
+      const prikljCollection3D = view3D.scene.primitives.add(
+        new Cesium.PointPrimitiveCollection({
+          modelMatrix: Cesium.Matrix4.IDENTITY,
+        })
+      );
+
+      const prikljCollection2D = view2D.scene.primitives.add(
+        new Cesium.PointPrimitiveCollection()
+      );
+
+      //  const zoneCollection = new Cesium.EntityCollection();
+
+      //   const vodospCollection = new Cesium.EntityCollection();
+
+      //  const pumpaCollection = new Cesium.EntityCollection();
+      //           const vodCollection = new Cesium.EntityCollection();
+
+      function PrikljucakGeocoder() {}
+
+      ///////////////
+
+      PrikljucakGeocoder.prototype.geocode = function (input) {
+        var searchtext = input;
+        var searchlist = [];
+
+        const endpoint =
+          "https://raw.githubusercontent.com/edc-dev/example-geojson/main/pump.geojson";
+        var resource = new Cesium.Resource({
+          url: endpoint,
+          queryParameters: {
+            format: "json",
+            //  q: input,
+          },
+        });
+
+        var primColls = view3D.scene.primitives._primitives;
+        var primCollsLen = primColls.length;
+
+        for (var i = 0; i < primCollsLen; ++i) {
+          var pC = primColls[i];
+          var pCLen = pC.length;
+          //  console.log (pCLen);
+          //      console.log (pC);
+          for (var j = 0; j < pCLen; ++j) {
+            var prim = pC.get([j]);
+            //    console.log(prim.id);
+
+            if (!prim.id) {
+            } else {
+              if (
+                prim.id
+                  .toString()
+                  .toLowerCase()
+                  .indexOf(searchtext.toString().toLowerCase()) > -1
+              ) {
+                searchlist.push(prim);
+                // console.log (searchtext.toString().toLowerCase())
+                //     console.log ("SLIST:",searchlist);
+                //   console.log ("REZ:",l.id.toString().indexOf(searchtext));
+              }
+            }
+          }
+        }
+
+        //  var meLC = view3D.scene.primitives._primitives[0]._pointPrimitives;
+        //    var len = meLC.length;
+
+        var dsc = view3D._dataSourceCollection._dataSources;
+        var dscLen = dsc.length;
+        var dcTank;
+        var dcPump;
+
+        for (i = 0; i < dscLen; ++i) {
+          const dscName = dsc[i]._name;
+
+          switch (dscName) {
+            case "tank.geojson":
+              dcTank = dsc[i]._entityCollection._entities._array;
+              break;
+            case "pump.geojson":
+              dcPump = dsc[i]._entityCollection._entities._array;
+          }
+        }
+
+        var dcTankLe = dcTank.length;
+        var dcPumpLe = dcPump.length;
+
+        for (var j = 0; j < dcTankLe; ++j) {
+          var ll = dcTank[j];
+          //console.log(ll);
+          if (
+            ll._properties._Ime
+              .toString()
+              .toLowerCase()
+              .indexOf(searchtext.toString().toLowerCase()) > -1
+          ) {
+            // dma imaju _Naziv umjesto _Ime
+            searchlist.push(ll);
+          }
+        }
+
+        for (var j = 0; j < dcPumpLe; ++j) {
+          var ll = dcPump[j];
+          //    console.log(ll);
+          if (
+            ll._properties._Ime
+              .toString()
+              .toLowerCase()
+              .indexOf(searchtext.toString().toLowerCase()) > -1
+          ) {
+            // dma imaju _Naziv umjesto _Ime
+            searchlist.push(ll);
+          }
+        }
+
+        //    console.log ("__");
+
+        /*for (var i = 0; i < len; ++i) {
+            var l = meLC[i];
+       // console.log ("L:",l.id);
+             if ( l.id.toString().toLowerCase().indexOf( searchtext.toString().toLowerCase() ) > -1 ) {
+                  searchlist.push(l);
+              // console.log (searchtext.toString().toLowerCase())
+             //  console.log ("SLIST:",searchlist);
+              //   console.log ("REZ:",l.id.toString().indexOf(searchtext));
+             }
+          }*/
+
+        return resource
+          .fetchJson("") //ovo ne ide bez fetchanja resourcea cini mi se
+          .then(function (results) {
+            resource = {};
+            var bboxDegrees;
+            return searchlist.map(function (resultObject) {
+              //   console.log("RO",resultObject);
+              if (!resultObject._properties) {
+                var lonlat = Cesium.Ellipsoid.WGS84.cartesianToCartographic(
+                  resultObject.position
+                );
+              } else {
+                var lonlat = Cesium.Ellipsoid.WGS84.cartesianToCartographic(
+                  resultObject.position._value
+                );
+              }
+
+              var heightmin = 0.001;
+              var heightmax = 0.005;
+              //   if (resultObject.distanceDisplayCondition.near) heightmin = resultObject.distanceDisplayCondition.near;
+              // if (resultObject.distanceDisplayCondition.far) heightmax = resultObject.distanceDisplayCondition.far;
+              var horizdeg =
+                Math.sqrt((0.5 * 6371000 * (heightmax + heightmin)) / 2) /
+                111000;
+              //  console.log(horizdeg);
+              var nwlat = lonlat.latitude + ((Math.PI / 180) * horizdeg) / 2;
+              if (nwlat > Math.PI / 2)
+                nwlat = (((nwlat / Math.PI / 2) % 1) * Math.PI) / 2;
+              var nwlon = lonlat.longitude + (Math.PI / 360) * horizdeg;
+              if (nwlon > Math.PI)
+                nwlon = ((nwlon / Math.PI - 1) % 1) * Math.PI;
+              var swlat = lonlat.latitude - ((Math.PI / 180) * horizdeg) / 2;
+              if (swlat < -Math.PI / 2)
+                swlat = (((swlat / Math.PI / 2) % 1) * Math.PI) / 2;
+              var swlon = lonlat.longitude - (Math.PI / 360) * horizdeg;
+              if (swlon < -Math.PI)
+                swlon = ((swlon / Math.PI + 1) % 1) * Math.PI;
+              var carto = [
+                new Cesium.Cartographic(swlon, swlat, heightmin),
+                new Cesium.Cartographic(nwlon, nwlat, heightmax),
+              ];
+              // console.log(carto);
+              var recto = Cesium.Rectangle.fromCartographicArray(carto);
+              if (!resultObject._properties) {
+                //  console.log (resultObject.position);
+                var returnObject = {
+                  displayName: resultObject.id,
+                  destination: recto,
+                };
+              } else {
+                //   console.log (resultObject.position._value);
+                //   console.log("TANK:",resultObject, recto);
+                var returnObject = {
+                  displayName: resultObject._properties._Ime,
+                  destination: recto,
+                };
+              }
+
+              return returnObject;
+            });
+          });
+      };
+
+      //////
+
+      function PrikljucakGeocoder2D() {}
+
+      ///////////////
+
+      PrikljucakGeocoder2D.prototype.geocode = function (input) {
+        var searchtext = input;
+        var searchlist = [];
+
+        const endpoint =
+          "https://raw.githubusercontent.com/edc-dev/example-geojson/main/pump.geojson";
+        var resource = new Cesium.Resource({
+          url: endpoint,
+          queryParameters: {
+            format: "json",
+            //  q: input,
+          },
+        });
+
+        var primColls = view2D.scene.primitives._primitives;
+        var primCollsLen = primColls.length;
+
+        for (var i = 0; i < primCollsLen; ++i) {
+          var pC = primColls[i];
+          var pCLen = pC.length;
+          //  console.log (pCLen);
+          //      console.log (pC);
+          for (var j = 0; j < pCLen; ++j) {
+            var prim = pC.get([j]);
+            //    console.log(prim.id);
+
+            if (!prim.id) {
+            } else {
+              if (
+                prim.id
+                  .toString()
+                  .toLowerCase()
+                  .indexOf(searchtext.toString().toLowerCase()) > -1
+              ) {
+                searchlist.push(prim);
+                // console.log (searchtext.toString().toLowerCase())
+                //     console.log ("SLIST:",searchlist);
+                //   console.log ("REZ:",l.id.toString().indexOf(searchtext));
+              }
+            }
+          }
+        }
+
+        //  var meLC = view3D.scene.primitives._primitives[0]._pointPrimitives;
+        //    var len = meLC.length;
+
+        var dsc = view2D._dataSourceCollection._dataSources;
+        var dscLen = dsc.length;
+        var dcTank;
+        var dcPump;
+
+        for (i = 0; i < dscLen; ++i) {
+          const dscName = dsc[i]._name;
+
+          switch (dscName) {
+            case "tank.geojson":
+              dcTank = dsc[i]._entityCollection._entities._array;
+              break;
+            case "pump.geojson":
+              dcPump = dsc[i]._entityCollection._entities._array;
+          }
+        }
+
+        var dcTankLe = dcTank.length;
+        var dcPumpLe = dcPump.length;
+
+        for (var j = 0; j < dcTankLe; ++j) {
+          var ll = dcTank[j];
+          //console.log(ll);
+          if (
+            ll._properties._Ime
+              .toString()
+              .toLowerCase()
+              .indexOf(searchtext.toString().toLowerCase()) > -1
+          ) {
+            // dma imaju _Naziv umjesto _Ime
+            searchlist.push(ll);
+          }
+        }
+
+        for (var j = 0; j < dcPumpLe; ++j) {
+          var ll = dcPump[j];
+          //    console.log(ll);
+          if (
+            ll._properties._Ime
+              .toString()
+              .toLowerCase()
+              .indexOf(searchtext.toString().toLowerCase()) > -1
+          ) {
+            // dma imaju _Naziv umjesto _Ime
+            searchlist.push(ll);
+          }
+        }
+
+        //    console.log ("__");
+
+        /*for (var i = 0; i < len; ++i) {
+            var l = meLC[i];
+       // console.log ("L:",l.id);
+             if ( l.id.toString().toLowerCase().indexOf( searchtext.toString().toLowerCase() ) > -1 ) {
+                  searchlist.push(l);
+              // console.log (searchtext.toString().toLowerCase())
+              console.log ("SLIST:",searchlist);
+              //   console.log ("REZ:",l.id.toString().indexOf(searchtext));
+             }
+          }*/
+
+        return resource
+          .fetchJson("") //ovo ne ide bez fetchanja resourcea cini mi se
+          .then(function (results) {
+            resource = {};
+            var bboxDegrees;
+            return searchlist.map(function (resultObject) {
+              //   console.log("RO",resultObject);
+              if (!resultObject._properties) {
+                var lonlat = Cesium.Ellipsoid.WGS84.cartesianToCartographic(
+                  resultObject.position
+                );
+              } else {
+                var lonlat = Cesium.Ellipsoid.WGS84.cartesianToCartographic(
+                  resultObject.position._value
+                );
+              }
+
+              var heightmin = 0.001;
+              var heightmax = 0.005;
+              //   if (resultObject.distanceDisplayCondition.near) heightmin = resultObject.distanceDisplayCondition.near;
+              // if (resultObject.distanceDisplayCondition.far) heightmax = resultObject.distanceDisplayCondition.far;
+              var horizdeg =
+                Math.sqrt((0.5 * 6371000 * (heightmax + heightmin)) / 2) /
+                111000;
+              //  console.log(horizdeg);
+              var nwlat = lonlat.latitude + ((Math.PI / 180) * horizdeg) / 2;
+              if (nwlat > Math.PI / 2)
+                nwlat = (((nwlat / Math.PI / 2) % 1) * Math.PI) / 2;
+              var nwlon = lonlat.longitude + (Math.PI / 360) * horizdeg;
+              if (nwlon > Math.PI)
+                nwlon = ((nwlon / Math.PI - 1) % 1) * Math.PI;
+              var swlat = lonlat.latitude - ((Math.PI / 180) * horizdeg) / 2;
+              if (swlat < -Math.PI / 2)
+                swlat = (((swlat / Math.PI / 2) % 1) * Math.PI) / 2;
+              var swlon = lonlat.longitude - (Math.PI / 360) * horizdeg;
+              if (swlon < -Math.PI)
+                swlon = ((swlon / Math.PI + 1) % 1) * Math.PI;
+              var carto = [
+                new Cesium.Cartographic(swlon, swlat, heightmin),
+                new Cesium.Cartographic(nwlon, nwlat, heightmax),
+              ];
+              // console.log(carto);
+              var recto = Cesium.Rectangle.fromCartographicArray(carto);
+              if (!resultObject._properties) {
+                //  console.log (resultObject.position);
+                var returnObject = {
+                  displayName: resultObject.id,
+                  destination: recto,
+                };
+              } else {
+                //   console.log (resultObject.position._value);
+                //   console.log("TANK:",resultObject, recto);
+                var returnObject = {
+                  displayName: resultObject._properties._Ime,
+                  destination: recto,
+                };
+              }
+
+              return returnObject;
+            });
+          });
+      };
+      ////////////////////////
+
+      let searchbox3D = document.getElementsByClassName(
+        "cesium-geocoder-input"
+      )[0];
+      searchbox3D.setAttribute("placeholder", "ID priključka/naziv objekta...");
+
+      let searchbox2D = document.getElementsByClassName(
+        "cesium-geocoder-input"
+      )[1];
+      searchbox2D.setAttribute("placeholder", "ID priključka/naziv objekta...");
+
+      let searchwidget = document.getElementsByClassName(
+        "cesium-viewer-geocoderContainer"
+      )[1];
+      searchwidget.style.display = "none";
+
+      let homewidget = document.getElementsByClassName(
+        "cesium-button cesium-toolbar-button cesium-home-button"
+      )[1];
+      homewidget.style.display = "none";
+      
+
+  
+
+      view3D.terrainProvider.readyPromise.then(function () {
+        for (let i = 0; i < Object.values(dataSources).length; i++) {
+        const  promised = Cesium.GeoJsonDataSource.load(
+            Object.values(dataSources)[i],
+            { clampToGround: true }
+          );
+          let dataLayer = Object.keys(dataSources)[i];
+                        const colorHash = {};
+
+          //početak  3D style bloka
+
+          switch (dataLayer) {
+            case "mjernaZona":
+              let prikPoKm;
+              Cesium.Math.setRandomNumberSeed(0);
+
+              promised.then(function (dataSource) {
+                view3D.dataSources.add(dataSource);
+
+                let entities = dataSource.entities.values;
+
+                function djb2(str) {
+                  var hash = 5381;
+                  for (var i = 0; i < str.length; i++) {
+                    hash =
+                      (hash << 5) +
+                      hash +
+                      str.charCodeAt(i); /* hash * 33 + c */
+                  }
+                  return hash;
+                }
+
+                function colorHash(str) {
+                  var hash = djb2(str);
+                  var r = (hash & 0xff0000) >> 16;
+                  var g = (hash & 0x00ff00) >> 8;
+                  var b = hash & 0x0000ff;
+                  return (colorA = [r, g, b]);
+                  //return "#" + ("0" + r.toString(16)).substr(-2) + ("0" + g.toString(16)).substr(-2) + ("0" + b.toString(16)).substr(-2);
+                }
+
+                for (let i = 0; i < entities.length; i++) {
+                  let entity = entities[i];
+
+                  let zoneColor;
+                  //   zoneCollection.add(entity);
+                  let naziv = entity.properties.naziv.valueOf();
+                  //  console.log(naziv);
+                  if (!entity.properties.prikljucakaPoKm) {
+                    prikPoKm = 99;
+                  } else {
+                    prikPoKm = Number(
+                      Object.values(entity.properties.prikljucakaPoKm)[0]
+                    );
+                  }
+
+                  colorHash(naziv);
+                  // Boja zone se ispravno hasha iz naziva zone. random poslije toga je za svaki slučaj... ak zona nema naziv npr.
+                  zoneColor = new Cesium.Color.fromBytes(
+                    colorA[0],
+                    colorA[1],
+                    colorA[2],
+                    192
+                  );
+
+                  entity.polygon.material = zoneColor;
+                  if (!zoneColor) {
+                    let zoneColor = new Cesium.Color.fromRandom({
+                      alpha: 0.5,
+                    });
+                  }
+
+                  if (!entity.position && entity.polygon) {
+                    var center = Cesium.BoundingSphere.fromPoints(
+                      entity.polygon.hierarchy.valueOf().positions
+                    ).center;
+
+                    Cesium.Ellipsoid.WGS84.scaleToGeodeticSurface(
+                      center,
+                      center
+                    );
+
+                    entity.position = new Cesium.ConstantPositionProperty(
+                      center
+                    );
+                  }
+
+                  entity.label = new Cesium.LabelGraphics({
+                    text: naziv,
+                    font: "24px Helvetica",
+                    //height:0,
+                    //style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                    fillColor: Cesium.Color.WHITE,
+                    //  outlineColor: Cesium.Color.BLACK,
+                    // outlineWidth: 2,
+                    verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                    // pixelOffset: new Cesium.Cartesian2(0, 0),
+                    heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                    scaleByDistance: new Cesium.NearFarScalar(1500, 0, 500, 1),
+                    show: true,
+                  });
+                }
+              });
+
+              break;
+
+  /*case "podrucjeZgrada": //staviti katastar wfs
+
+           
+              Cesium.Math.setRandomNumberSeed(0);
+
+              promised.then(function (dataSource) {
+                view3D.dataSources.add(dataSource);
+
+                let entities = dataSource.entities.values;
+                let ime;
+
+                function djb2(str) {
+                  var hash = 5381;
+                  for (var i = 0; i < str.length; i++) {
+                    hash =
+                      (hash << 5) +
+                      hash +
+                      str.charCodeAt(i); // hash * 33 + c 
+                  }
+                  return hash;
+                }
+
+                function colorHash(str) {
+                  var hash = djb2(str);
+                  var r = (hash & 0xff0000) >> 16;
+                  var g = (hash & 0x00ff00) >> 8;
+                  var b = hash & 0x0000ff;
+                  return (colorA = [r, g, b]);
+                  //return "#" + ("0" + r.toString(16)).substr(-2) + ("0" + g.toString(16)).substr(-2) + ("0" + b.toString(16)).substr(-2);
+                }
+
+                for (let i = 0; i < entities.length; i++) {
+                  let entity = entities[i];
+
+                  let objektColor;
+                  //   zoneCollection.add(entity);
+                  if (!entity.properties.Ime) {
+                    console.log(entity.properties);
+                    ime="Objekt";} else {
+                       ime = entity.properties.Ime.valueOf();
+                      console.log(entity);
+                    }
+                 
+                 //  console.log("I:",ime);
+  
+                  colorHash(ime);
+                  // Boja zone se ispravno hasha iz naziva zone. random poslije toga je za svaki slučaj... ak zona nema naziv npr.
+                  objektColor = new Cesium.Color.fromBytes(
+                    colorA[0],
+                    colorA[1],
+                    colorA[2],
+                    255
+                  );
+
+                  
+                  if (!objektColor) {
+                    let objektColor = new Cesium.Color.fromRandom({
+                      alpha: 1,
+                    });
+                  }
+entity.polyline.height = 0;
+                  entity.polygon.outline = true;
+                  entity.polygon.fill = false;
+entity.polyline.material = objektColor;
+entity.polyline.width=5;
+                  entity.polygon.material = objektColor;
+                  
+                  if (!entity.position && entity.polygon) {
+                    var center = Cesium.BoundingSphere.fromPoints(
+                      entity.polygon.hierarchy.valueOf().positions
+                    ).center;
+
+                    Cesium.Ellipsoid.WGS84.scaleToGeodeticSurface(
+                      center,
+                      center
+                    );
+
+                    entity.position = new Cesium.ConstantPositionProperty(
+                      center
+                    );
+                  }
+
+                  entity.label = new Cesium.LabelGraphics({
+                    text: ime,
+                    font: "24px Helvetica",
+                    //height:0,
+                    //style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                    fillColor: Cesium.Color.WHITE,
+                    //  outlineColor: Cesium.Color.BLACK,
+                    // outlineWidth: 2,
+                    verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                    // pixelOffset: new Cesium.Cartesian2(0, 0),
+                    heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                    scaleByDistance: new Cesium.NearFarScalar(1500, 0, 500, 1),
+                    show: true,
+                  });
+                }
+              });
+
+              break; */
+              
+              
+              
+              
+            case "vodospremnik":
+              var volumenV;
+              var dubinaV;
+              var dimenzV;
+              promised.then(function (dataSource) {
+                view3D.dataSources.add(dataSource);
+                let entities = dataSource.entities.values;
+
+                for (let i = 0; i < entities.length; i++) {
+                  let entity = entities[i];
+
+                  // console.log(i,entity.properties.Vuk_m3);
+                  if (!entity.properties.Vuk_m3) {
+                    volumenV = Number(99.99);
+                  } else {
+                    volumenV = Number(
+                      Object.values(entity.properties.Vuk_m3)[0]
+                    );
+                  }
+
+                  if (
+                    !entity.properties.Hmax_mnm ||
+                    !entity.properties.Hdno_mnm ||
+                    entity.properties.Hmax_mnm < entity.properties.Hdno_mnm
+                  ) {
+                    dubinaV = Number(4);
+                  } else {
+                    dubinaV =
+                      Number(entity.properties.Hmax_mnm) -
+                      Number(entity.properties.Hdno_mnm);
+                  }
+                  dimenzV = Number(Math.sqrt(volumenV / dubinaV));
+
+                  //  console.log (entity.properties.Ime, entity.properties.Hmax_mnm, entity.properties.Hdno_mnm, dubinaV, dimenzV);
+
+                  entity.billboard = undefined;
+                  entity.point = new Cesium.PointGraphics({
+                    height: 0,
+                    color: Cesium.Color.BLUE.withAlpha(1),
+                    outlineColor: Cesium.Color.WHITE,
+                    outlineWidth: 2,
+                    pixelSize: 5,
+                    heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                    scaleByDistance: new Cesium.NearFarScalar(
+                      1500,
+                      1.5,
+                      500,
+                      1
+                    ),
+                  });
+                  //    vodospCollection.add(entity.point);
+            /*      entity.box = new Cesium.BoxGraphics({
+                    dimensions: new Cesium.Cartesian3(
+                      dimenzV,
+                      dimenzV,
+                      dubinaV
+                    ),
+                    material: Cesium.Color.BLUE.withAlpha(0.5),
+                    height: 0,
+                    outline: true,
+                    ooutlineColor: Cesium.Color.WHITE,
+                    outlineWidth: 1,
+                    heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                    distanceDisplayCondition:
+                      new Cesium.DistanceDisplayCondition(0.0, 250.0),
+                  });*/
+
+                  entity.label = new Cesium.LabelGraphics({
+                    text:
+                      entity.properties.Ime +
+                      "\nV=" +
+                      entity.properties.Vuk_m3 +
+                      "m3",
+                    font: "20px Helvetica",
+                    height: 0,
+                    fillColor: Cesium.Color.WHITE,
+                    outlineColor: Cesium.Color.BLUE,
+                    outlineWidth: 1,
+                    heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                    scaleByDistance: new Cesium.NearFarScalar(1500, 0, 500, 1),
+                  });
+
+                  entity.label.show = true;
+                }
+              });
+              break;
+
+            case "pumpa":
+              var QnomP;
+              promised.then(function (dataSource) {
+                view3D.dataSources.add(dataSource);
+                let entities = dataSource.entities.values;
+
+                for (let i = 0; i < entities.length; i++) {
+                  let entity = entities[i];
+
+                  //   console.log(i,entity.properties.Qnom_l_s);
+                  if (!entity.properties.Qnom_l_s) {
+                    QnomP = 39;
+                  } else {
+                    QnomP = Number(entity.properties.Qnom_l_s);
+                  }
+                  //console.log (volumenV);
+
+                  entity.billboard = undefined;
+                  entity.point = new Cesium.PointGraphics({
+                    height: 0,
+                    color: Cesium.Color.RED.withAlpha(1),
+                    outlineColor: Cesium.Color.BLACK,
+                    outlineWidth: 1,
+                    pixelSize: 5,
+                    heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                    disableDepthTestDistance: 1000,
+                    scaleByDistance: new Cesium.NearFarScalar(
+                      1500,
+                      1.5,
+                      500,
+                      1
+                    ),
+                  });
+                  //     pumpaCollection.add(entity.point);
+              /*    entity.box = new Cesium.BoxGraphics({
+                    dimensions: new Cesium.Cartesian3(
+                      QnomP / 10,
+                      QnomP / 10,
+                      QnomP / 10
+                    ),
+                    material: Cesium.Color.RED.withAlpha(0.5),
+                    height: 0,
+                    outline: true,
+                    outlineColor: Cesium.Color.BLACK,
+                    outlineWidth: 1,
+                    heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                    distanceDisplayCondition:
+                      new Cesium.DistanceDisplayCondition(0.0, 250.0),
+                  });*/
+
+                  entity.label = new Cesium.LabelGraphics({
+                    //    position: Cesium.Cartesian3.fromDegrees(
+                    //    -75.1641667,
+                    //      39.9522222
+                    //    ),
+                    text: entity.properties.Ime + "\nQnom=" + QnomP + "l/s",
+                    font: "20px Helvetica",
+                    height: 0,
+                    // background: true,
+                    //  backgroundColor: Cesium.Color.WHITE,
+                    fillColor: Cesium.Color.WHITE,
+                    //outline: true,
+                    //  outlineColor: Cesium.Color.RED,
+                    //  outlineWidth: 2,
+                    verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                    heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                    scaleByDistance: new Cesium.NearFarScalar(1500, 0, 500, 1),
+                  });
+
+                  entity.label.show = true;
+                }
+              });
+              break;
+
+            case "vod":
+              promised.then(function (dataSource) {
+                view3D.dataSources.add(dataSource);
+                let entities = dataSource.entities.values;
+
+                var materijal;
+                for (let i = 0; i < entities.length; i++) {
+                  let entity = entities[i];
+                  //  vodCollection.add(entity);
+
+                  if (!entity.properties.Materijal) {
+                    //console.log(entity.properties);
+                    materijal = "Nepoznato";
+                  } else {
+                    materijal = entity.properties.Materijal.valueOf();
+                  }
+                  //console.log(materijal);
+                  switch (materijal) {
+                    case "AC":
+                    case "AC-C":
+                    case "AC-D":
+                      entity.polyline.material =
+                        new Cesium.PolylineOutlineMaterialProperty({
+                          color: mapMaterijali.get("AC"),
+                          height: 0,
+                          outlineColor: Cesium.Color.BLACK,
+                          outlineWidth: 1,
+                        });
+
+                      break;
+                    case "PEHD":
+                      entity.polyline.material =
+                        new Cesium.PolylineOutlineMaterialProperty({
+                          color: mapMaterijali.get("PEHD"),
+                          height: 0,
+                          outlineColor: Cesium.Color.BLACK,
+                          outlineWidth: 1,
+                        });
+                      break;
+                    case "PVC":
+                      entity.polyline.material =
+                        new Cesium.PolylineOutlineMaterialProperty({
+                          color: mapMaterijali.get("PVC"),
+                          height: 0,
+                          outlineColor: Cesium.Color.BLACK,
+                          outlineWidth: 1,
+                        });
+                      break;
+                    case "POC":
+                      entity.polyline.material =
+                        new Cesium.PolylineOutlineMaterialProperty({
+                          color: mapMaterijali.get("POC"),
+                          height: 0,
+                          outlineColor: Cesium.Color.BLACK,
+                          outlineWidth: 1,
+                        });
+                      break;
+                    case "NL":
+                    case "SL":
+                      entity.polyline.material =
+                        new Cesium.PolylineOutlineMaterialProperty({
+                          color: mapMaterijali.get("NL"),
+                          height: 0,
+                          outlineColor: Cesium.Color.BLUE,
+                          outlineWidth: 1,
+                        });
+                      break;
+                    case "CE":
+                    case "ČE":
+                      entity.polyline.material =
+                        new Cesium.PolylineOutlineMaterialProperty({
+                          color: mapMaterijali.get("ČE"),
+                          height: 0,
+                          outlineColor: Cesium.Color.BLACK,
+                          outlineWidth: 1,
+                        });
+                      break;
+                    case "Nepoznato":
+                    default:
+                      entity.polyline.material =
+                        new Cesium.PolylineOutlineMaterialProperty({
+                          color: mapMaterijali.get("Nepoznato"),
+                          height: 0,
+                          outlineColor: Cesium.Color.BLACK,
+                          outlineWidth: 1,
+                        });
+                  }
+
+                  if (
+                    entity.properties.DN >= 240 &&
+                    entity.properties.DN < 800
+                  ) {
+                    entity.polyline.width = entity.properties.DN / 60.0;
+                  } else if (entity.properties.DN >= 800) {
+                    entity.polyline.width = 10;
+                  } else {
+                    entity.polyline.width = 3;
+                  }
+                  entity.polyline.clampToGround = true;
+                }
+              });
+              break;
+            //      case "prikljucak":
+
+            case "prikljucak": //   priključak previše opterećuje sustav. parcijalni load ??
+              promised.then(function (dataSource) {
+                //clustering
+                //const pixelRange = 15;
+                //const minimumClusterSize = 3;
+                //const enabled = true;
+
+                //dataSource.clustering.enabled = enabled;
+                //dataSource.clustering.pixelRange = pixelRange;
+
+                //dataSource.clustering.minimumClusterSize = minimumClusterSize;
+                //clustering
+
+                view3D.dataSources.add(dataSource);
+                let entities = dataSource.entities.values;
+                const prikLabCollection = new Cesium.LabelCollection();
+                let prikljucakID;
+
+                for (let i = 0; i < entities.length; i++) {
+                  let entity = entities[i];
+                  if (typeof entity.properties.device_id == "undefined") {
+                    prikljucakID = -99;
+                  } else {
+                    prikljucakID = entity.properties.device_id.getValue();
+                  }
+                  //  entity.billboard = undefined;
+
+                  /*    const promiseTer = Cesium.sampleTerrainMostDetailed(view3D.terrainProvider, entity.position);
+                        promiseTer.then (function(updatedPosition) {*/
+
+                  //ovdje se u stvari mora skužit msl geografska visina na točci priključka i dodati na cartesian3.Z
+
+                  prikljCollection3D.add({
+                    position: entity.position.getValue(),
+                    color: Cesium.Color.BLACK,
+                    pixelSize: 5,
+                    disableDepthTestDistance: 1000,
+                    billboard: (entity.billboard = undefined),
+                    distanceDisplayCondition:
+                      new Cesium.DistanceDisplayCondition(0.0, 500.0),
+                    allowPicking: true,
+                    id: prikljucakID,
+                  });
+
+                  //    console.log ("E:",entities[i].position.getValue());
+                  //    console.log ("P:",entity.position.getValue());
+
+                  //    });
+                }
+              });
+              break;
+          }
+
+          //kraj 3D style bloka
+
+      
+            
+    
+  
+
+          
+          
+          
+          
+        }
+        
+        
+        
+  
+       
+     
+        
+        
+        
+        
+      });
+      
+      
+      
+ 
+
+      
+      
+      
+      
+      
+      //kraj 3d viewera
+
+      for (let i = 0; i < Object.values(dataSources).length; i++) {
+        const promised = Cesium.GeoJsonDataSource.load(
+          Object.values(dataSources)[i]
+        );
+
+        let dataLayer = Object.keys(dataSources)[i];
+
+        //početak 2D style bloka
+
+        switch (dataLayer) {
+          case "mjernaZona":
+            let prikPoKm;
+            Cesium.Math.setRandomNumberSeed(0);
+            const colorHash = {};
+            promised.then(function (dataSource) {
+              view2D.dataSources.add(dataSource);
+
+              let entities = dataSource.entities.values;
+
+              function djb2(str) {
+                var hash = 5381;
+                for (var i = 0; i < str.length; i++) {
+                  hash =
+                    (hash << 5) + hash + str.charCodeAt(i); /* hash * 33 + c */
+                }
+                return hash;
+              }
+
+              function colorHash(str) {
+                var hash = djb2(str);
+                var r = (hash & 0xff0000) >> 16;
+                var g = (hash & 0x00ff00) >> 8;
+                var b = hash & 0x0000ff;
+                return (colorA = [r, g, b]);
+                //return "#" + ("0" + r.toString(16)).substr(-2) + ("0" + g.toString(16)).substr(-2) + ("0" + b.toString(16)).substr(-2);
+              }
+
+              for (let i = 0; i < entities.length; i++) {
+                let entity = entities[i];
+
+                let zoneColor;
+                //   zoneCollection.add(entity);
+                let naziv = entity.properties.naziv.valueOf();
+                //  console.log(naziv);
+                if (!entity.properties.prikljucakaPoKm) {
+                  prikPoKm = 99;
+                } else {
+                  prikPoKm = Number(
+                    Object.values(entity.properties.prikljucakaPoKm)[0]
+                  );
+                }
+
+                colorHash(naziv);
+                // Boja zone se ispravno hasha iz naziva zone. random poslije toga je za svaki slučaj... ak zona nema naziv npr.
+                zoneColor = new Cesium.Color.fromBytes(
+                  colorA[0],
+                  colorA[1],
+                  colorA[2],
+                  192
+                );
+
+                entity.polygon.material = zoneColor;
+                if (!zoneColor) {
+                  let zoneColor = new Cesium.Color.fromRandom({
+                    alpha: 0.5,
+                  });
+                }
+
+                if (!entity.position && entity.polygon) {
+                  var center = Cesium.BoundingSphere.fromPoints(
+                    entity.polygon.hierarchy.valueOf().positions
+                  ).center;
+
+                  Cesium.Ellipsoid.WGS84.scaleToGeodeticSurface(center, center);
+
+                  entity.position = new Cesium.ConstantPositionProperty(center);
+                }
+
+                entity.label = new Cesium.LabelGraphics({
+                  text: naziv,
+                  font: "24px Helvetica",
+                  //height:0,
+                  //style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                  fillColor: Cesium.Color.WHITE,
+                  //  outlineColor: Cesium.Color.BLACK,
+                  // outlineWidth: 2,
+                  verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                  // pixelOffset: new Cesium.Cartesian2(0, 0),
+                  heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                  disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                  scaleByDistance: new Cesium.NearFarScalar(1500, 0, 500, 1),
+                  show: true,
+                });
+              }
+            });
+
+            break;
+
+          case "vodospremnik":
+            var volumenV;
+            var dubinaV;
+            var dimenzV;
+            promised.then(function (dataSource) {
+              view2D.dataSources.add(dataSource);
+              let entities = dataSource.entities.values;
+
+              for (let i = 0; i < entities.length; i++) {
+                let entity = entities[i];
+
+                // console.log(i,entity.properties.Vuk_m3);
+                if (!entity.properties.Vuk_m3) {
+                  volumenV = Number(99.99);
+                } else {
+                  volumenV = Number(Object.values(entity.properties.Vuk_m3)[0]);
+                }
+
+                if (
+                  !entity.properties.Hmax_mnm ||
+                  !entity.properties.Hdno_mnm ||
+                  entity.properties.Hmax_mnm < entity.properties.Hdno_mnm
+                ) {
+                  dubinaV = Number(4);
+                } else {
+                  dubinaV =
+                    Number(entity.properties.Hmax_mnm) -
+                    Number(entity.properties.Hdno_mnm);
+                }
+                dimenzV = Number(Math.sqrt(volumenV / dubinaV));
+
+                //  console.log (entity.properties.Ime, entity.properties.Hmax_mnm, entity.properties.Hdno_mnm, dubinaV, dimenzV);
+
+                entity.billboard = undefined;
+                entity.point = new Cesium.PointGraphics({
+                  height: 0,
+                  color: Cesium.Color.BLUE.withAlpha(1),
+                  outlineColor: Cesium.Color.WHITE,
+                  outlineWidth: 2,
+                  pixelSize: 5,
+                  heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                  disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                  scaleByDistance: new Cesium.NearFarScalar(1500, 1.5, 500, 1),
+                });
+                //    vodospCollection.add(entity.point);
+                entity.box = new Cesium.BoxGraphics({
+                  dimensions: new Cesium.Cartesian3(dimenzV, dimenzV, dubinaV),
+                  material: Cesium.Color.BLUE.withAlpha(0.5),
+                  height: 0,
+                  outline: true,
+                  ooutlineColor: Cesium.Color.WHITE,
+                  outlineWidth: 1,
+                  heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                  disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                  distanceDisplayCondition: new Cesium.DistanceDisplayCondition(
+                    0.0,
+                    250.0
+                  ),
+                });
+
+                entity.label = new Cesium.LabelGraphics({
+                  text:
+                    entity.properties.Ime +
+                    "\nV=" +
+                    entity.properties.Vuk_m3 +
+                    "m3",
+                  font: "20px Helvetica",
+                  height: 0,
+                  fillColor: Cesium.Color.WHITE,
+                  outlineColor: Cesium.Color.BLUE,
+                  outlineWidth: 1,
+                  heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                  disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                  scaleByDistance: new Cesium.NearFarScalar(1500, 0, 500, 1),
+                });
+
+                entity.label.show = true;
+              }
+            });
+            break;
+
+          case "pumpa":
+            var QnomP;
+            promised.then(function (dataSource) {
+              view2D.dataSources.add(dataSource);
+              let entities = dataSource.entities.values;
+
+              for (let i = 0; i < entities.length; i++) {
+                let entity = entities[i];
+
+                //   console.log(i,entity.properties.Qnom_l_s);
+                if (!entity.properties.Qnom_l_s) {
+                  QnomP = 39;
+                } else {
+                  QnomP = Number(entity.properties.Qnom_l_s);
+                }
+                //console.log (volumenV);
+
+                entity.billboard = undefined;
+                entity.point = new Cesium.PointGraphics({
+                  height: 0,
+                  color: Cesium.Color.RED.withAlpha(1),
+                  outlineColor: Cesium.Color.BLACK,
+                  outlineWidth: 1,
+                  pixelSize: 5,
+                  heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                  disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                  disableDepthTestDistance: 1000,
+                  scaleByDistance: new Cesium.NearFarScalar(1500, 1.5, 500, 1),
+                });
+                //     pumpaCollection.add(entity.point);
+                entity.box = new Cesium.BoxGraphics({
+                  dimensions: new Cesium.Cartesian3(
+                    QnomP / 10,
+                    QnomP / 10,
+                    QnomP / 10
+                  ),
+                  material: Cesium.Color.RED.withAlpha(0.5),
+                  height: 0,
+                  outline: true,
+                  outlineColor: Cesium.Color.BLACK,
+                  outlineWidth: 1,
+                  heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                  disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                  distanceDisplayCondition: new Cesium.DistanceDisplayCondition(
+                    0.0,
+                    250.0
+                  ),
+                });
+
+                entity.label = new Cesium.LabelGraphics({
+                  //    position: Cesium.Cartesian3.fromDegrees(
+                  //    -75.1641667,
+                  //      39.9522222
+                  //    ),
+                  text: entity.properties.Ime + "\nQnom=" + QnomP + "l/s",
+                  font: "20px Helvetica",
+                  height: 0,
+                  // background: true,
+                  //  backgroundColor: Cesium.Color.WHITE,
+                  fillColor: Cesium.Color.WHITE,
+                  //outline: true,
+                  //  outlineColor: Cesium.Color.RED,
+                  //  outlineWidth: 2,
+                  verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                  heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                  disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                  scaleByDistance: new Cesium.NearFarScalar(1500, 0, 500, 1),
+                });
+
+                entity.label.show = true;
+              }
+            });
+            break;
+
+          case "vod":
+            promised.then(function (dataSource) {
+              view2D.dataSources.add(dataSource);
+              let entities = dataSource.entities.values;
+
+              var materijal;
+              for (let i = 0; i < entities.length; i++) {
+                let entity = entities[i];
+                //  vodCollection.add(entity);
+
+                if (!entity.properties.Materijal) {
+                  //console.log(entity.properties);
+                  materijal = "Nepoznato";
+                } else {
+                  materijal = entity.properties.Materijal.valueOf();
+                }
+                //console.log(materijal);
+                switch (materijal) {
+                  case "AC":
+                  case "AC-C":
+                  case "AC-D":
+                    entity.polyline.material =
+                      new Cesium.PolylineOutlineMaterialProperty({
+                        color: mapMaterijali.get("AC"),
+                        height: 0,
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 1,
+                      });
+
+                    break;
+                  case "PEHD":
+                    entity.polyline.material =
+                      new Cesium.PolylineOutlineMaterialProperty({
+                        color: mapMaterijali.get("PEHD"),
+                        height: 0,
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 1,
+                      });
+                    break;
+                  case "PVC":
+                    entity.polyline.material =
+                      new Cesium.PolylineOutlineMaterialProperty({
+                        color: mapMaterijali.get("PVC"),
+                        height: 0,
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 1,
+                      });
+                    break;
+                  case "POC":
+                    entity.polyline.material =
+                      new Cesium.PolylineOutlineMaterialProperty({
+                        color: mapMaterijali.get("POC"),
+                        height: 0,
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 1,
+                      });
+                    break;
+                  case "NL":
+                  case "SL":
+                    entity.polyline.material =
+                      new Cesium.PolylineOutlineMaterialProperty({
+                        color: mapMaterijali.get("NL"),
+                        height: 0,
+                        outlineColor: Cesium.Color.BLUE,
+                        outlineWidth: 1,
+                      });
+                    break;
+                  case "CE":
+                  case "ČE":
+                    entity.polyline.material =
+                      new Cesium.PolylineOutlineMaterialProperty({
+                        color: mapMaterijali.get("ČE"),
+                        height: 0,
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 1,
+                      });
+                    break;
+                  case "Nepoznato":
+                  default:
+                    entity.polyline.material =
+                      new Cesium.PolylineOutlineMaterialProperty({
+                        color: mapMaterijali.get("Nepoznato"),
+                        height: 0,
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 1,
+                      });
+                }
+
+                if (entity.properties.DN >= 240 && entity.properties.DN < 800) {
+                  entity.polyline.width = entity.properties.DN / 60.0;
+                } else if (entity.properties.DN >= 800) {
+                  entity.polyline.width = 10;
+                } else {
+                  entity.polyline.width = 3;
+                }
+                entity.polyline.clampToGround = true;
+              }
+            });
+            break;
+          //      case "prikljucak":
+
+          case "prikljucak": //   priključak previše opterećuje sustav. parcijalni load ??
+            promised.then(function (dataSource) {
+              //clustering
+              //const pixelRange = 15;
+              //const minimumClusterSize = 3;
+              //const enabled = true;
+
+              //dataSource.clustering.enabled = enabled;
+              //dataSource.clustering.pixelRange = pixelRange;
+
+              //dataSource.clustering.minimumClusterSize = minimumClusterSize;
+              //clustering
+
+              view2D.dataSources.add(dataSource);
+              let entities = dataSource.entities.values;
+              const prikLabCollection = new Cesium.LabelCollection();
+              let prikljucakID;
+
+              for (let i = 0; i < entities.length; i++) {
+                let entity = entities[i];
+                if (typeof entity.properties.device_id == "undefined") {
+                  prikljucakID = -99;
+                } else {
+                  prikljucakID = entity.properties.device_id.getValue();
+                }
+                //  entity.billboard = undefined;
+
+                /*    const promiseTer = Cesium.sampleTerrainMostDetailed(view3D.terrainProvider, entity.position);
+                        promiseTer.then (function(updatedPosition) {*/
+
+                //ovdje se u stvari mora skužit msl geografska visina na točci priključka i dodati na cartesian3.Z
+
+                prikljCollection2D.add({
+                  position: entity.position.getValue(),
+                  color: Cesium.Color.BLACK,
+                  pixelSize: 5,
+                  disableDepthTestDistance: 1000,
+                  billboard: (entity.billboard = undefined),
+                  distanceDisplayCondition: new Cesium.DistanceDisplayCondition(
+                    0.0,
+                    500.0
+                  ),
+                  allowPicking: true,
+                  id: prikljucakID,
+                });
+
+                //    console.log ("E:",entities[i].position.getValue());
+                //    console.log ("P:",entity.position.getValue());
+
+                //    });
+              }
+            });
+            break;
+        }
+
+        //kraj 2D style bloka
+
+        if (Object.values(dataSources).length - 1 === i) {
+          
+          
+          
+          
+                
+   
+          
+          
+          
+          
+          console.log("loop ends");
+        }
+      }
+    </script>
+  </body>
+</html>
