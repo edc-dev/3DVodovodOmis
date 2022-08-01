@@ -13,8 +13,6 @@ podrucjeZgrada : "https://raw.githubusercontent.com/edc-dev/example-geojson/main
 };
 
 
-//TŠ Token za pristup podacima: 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
-
 /*
 const request = require('request');
 
